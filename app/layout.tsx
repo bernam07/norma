@@ -45,7 +45,21 @@ export default function RootLayout({
       </head>
       <body className={`${inter.className} min-h-dvh bg-zinc-950 text-zinc-100 antialiased selection:bg-zinc-800 selection:text-zinc-100`}>
         {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').catch(function(e) {
+                    console.log('SW register failed: ', e);
+                  });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );
 }
+

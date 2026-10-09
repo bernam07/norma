@@ -31,13 +31,13 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Acesso negado");
+        throw new Error(data.error || "Access denied");
       }
 
-      // Sucesso: redireciona para a página principal
+      // Success: redirect to main page
       window.location.href = "/";
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Código de acesso incorreto");
+      setError(err instanceof Error ? err.message : "Incorrect passcode");
       setPasscode("");
       inputRef.current?.focus();
     } finally {
@@ -64,7 +64,7 @@ export default function LoginPage() {
           className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 shadow-xl backdrop-blur-sm"
         >
           <label className="block text-xs font-medium text-zinc-400 mb-2">
-            Código de Acesso
+            Passcode
           </label>
           <div className="relative">
             <input
@@ -72,7 +72,7 @@ export default function LoginPage() {
               type="password"
               value={passcode}
               onChange={(e) => setPasscode(e.target.value)}
-              placeholder="Introduz o código ou senha..."
+              placeholder="Enter passcode or secret..."
               disabled={isLoading}
               className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 transition tracking-wide disabled:opacity-50"
             />
@@ -90,13 +90,13 @@ export default function LoginPage() {
             disabled={isLoading || !passcode.trim()}
             className="w-full mt-4 h-10 rounded-xl bg-zinc-100 text-zinc-950 font-semibold text-xs flex items-center justify-center gap-2 hover:bg-white active:scale-98 disabled:opacity-40 disabled:active:scale-100 transition shadow-sm touch-manipulation cursor-pointer disabled:cursor-not-allowed"
           >
-            <span>{isLoading ? "A validar..." : "Desbloquear"}</span>
+            <span>{isLoading ? "Verifying..." : "Unlock"}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </form>
 
         <p className="text-center text-[11px] text-zinc-600 mt-6">
-          Acesso restrito ao proprietário da aplicação
+          Restricted access to the application owner
         </p>
       </div>
     </main>

@@ -41,6 +41,8 @@ async function ensureTable(): Promise<void> {
   }
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function getUnprocessedNotes(): Promise<Note[]> {
   await ensureTable();
   const client = getPool();
@@ -67,8 +69,39 @@ export async function insertNote(content: string): Promise<Note> {
   return res.rows[0];
 }
 
+export async function updateNote(id: string, content: string): Promise<Note | null> {
+  if (!UUID_REGEX.test(id)) return null;
+  await ensureTable();
+  const client = getPool();
+  const res = await client.query<Note>(
+    `
+    UPDATE notes
+    SET content = $1
+    WHERE id = $2 AND processed = false
+    RETURNING id, content, created_at, processed;
+    `,
+    [content, id]
+  );
+  return res.rows[0] || null;
+}
+
+export async function deleteNote(id: string): Promise<boolean> {
+  if (!UUID_REGEX.test(id)) return false;
+  await ensureTable();
+  const client = getPool();
+  const res = await client.query(
+    `
+    DELETE FROM notes
+    WHERE id = $1;
+    `,
+    [id]
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
 export async function markNotesAsProcessed(ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
+  const validIds = ids.filter((id) => typeof id === "string" && UUID_REGEX.test(id));
+  if (validIds.length === 0) return;
   await ensureTable();
   const client = getPool();
   await client.query(
@@ -77,6 +110,31 @@ export async function markNotesAsProcessed(ids: string[]): Promise<void> {
     SET processed = true
     WHERE id = ANY($1::uuid[]);
     `,
-    [ids]
+    [validIds]
   );
+}
+
+export async function getProcessedNotes(limit = 200, offset = 0): Promise<Note[]> {
+  await ensureTable();
+  const client = getPool();
+  const res = await client.query<Note>(
+    `
+    SELECT id, content, created_at, processed
+    FROM notes
+    WHERE processed = true
+    ORDER BY created_at DESC
+    LIMIT $1 OFFSET $2;
+    `,
+    [limit, offset]
+  );
+  return res.rows;
+}
+
+export async function getProcessedNotesCount(): Promise<number> {
+  await ensureTable();
+  const client = getPool();
+  const res = await client.query<{ count: string }>(
+    `SELECT COUNT(*)::text as count FROM notes WHERE processed = true;`
+  );
+  return parseInt(res.rows[0]?.count || "0", 10);
 }

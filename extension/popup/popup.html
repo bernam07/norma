@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Norma Quick Capture</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <span class="title">Norma</span>
+        <span class="indicator"></span>
+      </div>
+      <button id="toggle-settings-btn" class="icon-btn" title="Settings">
+        ⚙
+      </button>
+    </header>
+
+    <!-- Main Capture View -->
+    <main id="capture-view">
+      <textarea id="note-input" placeholder="Capture thought, task, or link..." rows="4" autofocus></textarea>
+
+      <div class="actions">
+        <button id="append-tab-btn" class="secondary-btn" title="Append link of active tab">
+          + Current Tab
+        </button>
+        <button id="capture-btn" class="primary-btn">
+          Capture
+        </button>
+      </div>
+
+      <div class="hint">
+        Ctrl + Enter to send quickly
+      </div>
+    </main>
+
+    <!-- Settings View (Hidden by default) -->
+    <section id="settings-view" class="hidden">
+      <h3>Norma Settings</h3>
+      <div class="form-group">
+        <label for="norma-url-input">Norma URL (Web or Local)</label>
+        <input type="url" id="norma-url-input" placeholder="https://norma.vercel.app">
+      </div>
+      <div class="form-group">
+        <label for="auth-secret-input">Passcode / Secret (AUTH_SECRET)</label>
+        <input type="password" id="auth-secret-input" placeholder="Your secret passcode">
+      </div>
+      <div class="actions">
+        <button id="back-capture-btn" class="secondary-btn">Back</button>
+        <button id="save-settings-btn" class="primary-btn">Save</button>
+      </div>
+    </section>
+
+    <!-- Status Message -->
+    <div id="status-message" class="status hidden"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

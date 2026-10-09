@@ -67,8 +67,9 @@ export const config = {
      * Match all request paths except for:
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - public assets (favicon, icons, manifest)
+     * - public assets (favicon, icons, manifest, service worker)
      */
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-touch-icon.png|icon-192.png|icon-512.png|manifest.json).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-touch-icon.png|icon-192.png|icon-512.png|manifest.json|sw.js).*)",
   ],
 };
+
