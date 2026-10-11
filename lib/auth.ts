@@ -19,19 +19,24 @@ export function safeCompare(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/**
- * Computes a deterministic SHA-256 session token from AUTH_SECRET.
- * This ensures the raw password/secret is never stored in the cookie.
- */
+let cachedTokenRecord: { secret: string; token: string } | null = null;
+
 export async function computeSessionToken(secret: string): Promise<string> {
+  if (cachedTokenRecord && cachedTokenRecord.secret === secret) {
+    return cachedTokenRecord.token;
+  }
+
   const enc = new TextEncoder();
   const digest = await crypto.subtle.digest(
     "SHA-256",
     enc.encode(secret + ":norma_session")
   );
-  return Array.from(new Uint8Array(digest))
+  const token = Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+
+  cachedTokenRecord = { secret, token };
+  return token;
 }
 
 /**

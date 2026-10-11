@@ -18,10 +18,20 @@ import {
   copyMarkdownToClipboard,
 } from "@/lib/export-markdown";
 
+const ARCHIVE_CACHE_KEY = "norma_archive_cache_v1";
+
 export default function ArchivePage() {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [notes, setNotes] = useState<Note[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem(ARCHIVE_CACHE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [total, setTotal] = useState(() => notes.length);
+  const [isLoading, setIsLoading] = useState(() => notes.length === 0);
   const [searchQuery, setSearchQuery] = useState("");
   const [copiedDay, setCopiedDay] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
@@ -29,7 +39,6 @@ export default function ArchivePage() {
 
   const fetchArchive = async () => {
     try {
-      setIsLoading(true);
       const res = await fetch("/api/archive?limit=300", { cache: "no-store" });
       if (res.status === 401) {
         window.location.href = "/login";
@@ -37,10 +46,18 @@ export default function ArchivePage() {
       }
       if (!res.ok) throw new Error("Failed to load archive notes");
       const data = await res.json();
-      setNotes(data.notes || []);
+      const freshNotes = data.notes || [];
+      setNotes(freshNotes);
       setTotal(data.total || 0);
+      try {
+        localStorage.setItem(ARCHIVE_CACHE_KEY, JSON.stringify(freshNotes));
+      } catch {
+        // ignore
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Connection failed");
+      if (notes.length === 0) {
+        setError(err instanceof Error ? err.message : "Connection failed");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +121,7 @@ export default function ArchivePage() {
   };
 
   return (
-    <main className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 safe-top safe-bottom safe-left safe-right select-none">
+    <main className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 safe-top safe-left safe-right select-none">
       {/* Header */}
       <header className="px-5 py-4 border-b border-zinc-900/80 flex items-center justify-between shrink-0 bg-zinc-950/90 backdrop-blur-sm sticky top-0 z-20">
         <div className="flex items-center gap-3">
