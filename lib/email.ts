@@ -104,6 +104,7 @@ export async function sendDailyBriefing(notes: Note[]): Promise<{ id: string }> 
   });
 
   if (error) {
+    console.error("[Email] Resend API error:", error);
     throw new Error(error.message);
   }
 
