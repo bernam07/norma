@@ -1,38 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUnprocessedNotes, insertNote } from "@/lib/db";
-import { SESSION_COOKIE_NAME, isValidSessionToken, safeCompare } from "@/lib/auth";
+import { getAuthUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 const MAX_NOTE_LENGTH = 10000;
 
-async function checkAuth(request: NextRequest): Promise<boolean> {
-  const authSecret = process.env.AUTH_SECRET;
-  if (!authSecret) return false;
-
-  // Bearer Token check
-  const authHeader = request.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const bearerToken = authHeader.substring(7);
-    if (safeCompare(bearerToken, authSecret)) return true;
-  }
-
-  // Cookie check
-  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (sessionCookie && (await isValidSessionToken(sessionCookie))) {
-    return true;
-  }
-
-  return false;
-}
-
 export async function GET(request: NextRequest) {
   try {
-    if (!(await checkAuth(request))) {
+    const user = await getAuthUser(request);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const notes = await getUnprocessedNotes();
+    const notes = await getUnprocessedNotes(user.id);
     return NextResponse.json({ notes }, { status: 200 });
   } catch (error) {
     return NextResponse.json(
@@ -44,7 +25,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!(await checkAuth(request))) {
+    const user = await getAuthUser(request);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -73,7 +55,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const note = await insertNote(trimmedContent);
+    const note = await insertNote(trimmedContent, user.id);
     return NextResponse.json({ note }, { status: 201 });
   } catch (error) {
     return NextResponse.json(

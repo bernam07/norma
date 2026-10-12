@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUnprocessedNotes, markNotesAsProcessed } from "@/lib/db";
+import {
+  getUsersWithPendingNotesForCron,
+  getUnprocessedNotes,
+  markNotesAsProcessed,
+} from "@/lib/db";
 import { sendDailyBriefing } from "@/lib/email";
 import { safeCompare } from "@/lib/auth";
 
@@ -17,35 +21,73 @@ export async function GET(request: NextRequest) {
 
     if (!isCronAuthorized && !isAuthAuthorized) {
       console.error(
-        `[Cron] Unauthorized request. Authorization header: ${authHeader ? "present" : "missing"}, CRON_SECRET set: ${Boolean(cronSecret)}, AUTH_SECRET set: ${Boolean(authSecret)}`
+        `[Cron] Unauthorized request. Authorization header: ${authHeader ? "present" : "missing"}`
       );
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const notes = await getUnprocessedNotes();
+    const eligibleUsers = await getUsersWithPendingNotesForCron();
 
-    if (notes.length === 0) {
-      console.log("[Cron] Daily briefing: queue is empty (0 notes to process).");
-      return NextResponse.json({ message: "No notes to process" }, { status: 200 });
+    if (eligibleUsers.length === 0) {
+      console.log("[Cron] Daily briefing: no users with pending notes and configured email.");
+      return NextResponse.json(
+        { message: "No eligible users with pending notes found." },
+        { status: 200 }
+      );
     }
 
-    console.log(`[Cron] Sending daily briefing for ${notes.length} note(s)...`);
-    const emailResult = await sendDailyBriefing(notes);
-    const noteIds = notes.map((note) => note.id);
-    await markNotesAsProcessed(noteIds);
+    console.log(`[Cron] Found ${eligibleUsers.length} user(s) to process.`);
+    const results = [];
 
-    console.log(`[Cron] Daily briefing sent successfully! Email ID: ${emailResult.id}`);
+    for (const user of eligibleUsers) {
+      try {
+        const userNotes = await getUnprocessedNotes(user.id);
+        if (userNotes.length === 0) continue;
+
+        console.log(
+          `[Cron] Processing ${userNotes.length} note(s) for user ${user.username} (${user.email})...`
+        );
+
+        const emailResult = await sendDailyBriefing(userNotes, {
+          apiKey: user.resend_api_key,
+          recipient: user.email,
+          fromAddress: user.from_email,
+        });
+
+        const noteIds = userNotes.map((note) => note.id);
+        await markNotesAsProcessed(noteIds, user.id);
+
+        results.push({
+          userId: user.id,
+          username: user.username,
+          status: "success",
+          notesCount: userNotes.length,
+          emailId: emailResult.id,
+        });
+      } catch (userError) {
+        console.error(
+          `[Cron] Failed to process briefing for user ${user.username}:`,
+          userError
+        );
+        results.push({
+          userId: user.id,
+          username: user.username,
+          status: "failed",
+          error: userError instanceof Error ? userError.message : "Unknown error",
+        });
+      }
+    }
 
     return NextResponse.json(
       {
         success: true,
-        emailId: emailResult.id,
-        processedCount: notes.length,
+        processedUsers: results.length,
+        results,
       },
       { status: 200 }
     );
   } catch (error) {
-    console.error("[Cron] Error processing daily briefing:", error);
+    console.error("[Cron] Error processing daily briefings:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal Server Error" },
       { status: 500 }

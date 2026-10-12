@@ -3,4 +3,5 @@ export interface Note {
   content: string;
   created_at: string;
   processed: boolean;
+  user_id?: string;
 }

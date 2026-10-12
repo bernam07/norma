@@ -1,37 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateNote, deleteNote } from "@/lib/db";
-import { SESSION_COOKIE_NAME, isValidSessionToken, safeCompare } from "@/lib/auth";
+import { getAuthUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 const MAX_NOTE_LENGTH = 10000;
-
-async function checkAuth(request: NextRequest): Promise<boolean> {
-  const authSecret = process.env.AUTH_SECRET;
-  if (!authSecret) return false;
-
-  // Bearer Token check
-  const authHeader = request.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const bearerToken = authHeader.substring(7);
-    if (safeCompare(bearerToken, authSecret)) return true;
-  }
-
-  // Cookie check
-  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (sessionCookie && (await isValidSessionToken(sessionCookie))) {
-    return true;
-  }
-
-  return false;
-}
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!(await checkAuth(request))) {
+    const user = await getAuthUser(request);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -60,7 +41,7 @@ export async function PATCH(
       );
     }
 
-    const updated = await updateNote(id, trimmedContent);
+    const updated = await updateNote(id, trimmedContent, user.id);
     if (!updated) {
       return NextResponse.json(
         { error: "Note not found or already processed" },
@@ -82,12 +63,13 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!(await checkAuth(request))) {
+    const user = await getAuthUser(request);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = params;
-    const success = await deleteNote(id);
+    const success = await deleteNote(id, user.id);
 
     if (!success) {
       return NextResponse.json(

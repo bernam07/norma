@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import {
-  SESSION_COOKIE_NAME,
-  isValidSessionToken,
-  safeCompare,
-} from "@/lib/auth";
+import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -17,24 +13,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const authSecret = process.env.AUTH_SECRET;
-
-  // Check Bearer Token (for programmatic API requests & shortcuts)
-  const authHeader = request.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ") && authSecret) {
-    const bearerToken = authHeader.substring(7);
-    if (safeCompare(bearerToken, authSecret)) {
-      return NextResponse.next();
-    }
-  }
-
-  // Check Session Cookie
+  // 2. Check Session Cookie
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const isAuthenticated = sessionCookie
-    ? await isValidSessionToken(sessionCookie)
-    : false;
+  const session = sessionCookie ? await verifySessionToken(sessionCookie) : null;
+  const isAuthenticated = Boolean(session);
 
-  // 2. Handle /login page
+  // 3. Handle /login page
   if (pathname === "/login") {
     if (isAuthenticated) {
       return NextResponse.redirect(new URL("/", request.url));
@@ -42,18 +26,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. If authenticated, allow access
+  // 4. If Bearer Token is present on API routes, allow through for API key verification in route handler
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ") && pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
+  // 5. If authenticated, allow access
   if (isAuthenticated) {
     return NextResponse.next();
   }
 
-  // 4. If unauthenticated:
+  // 6. If unauthenticated:
   // For API endpoints: return 401 Unauthorized
   if (pathname.startsWith("/api/")) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // For Web pages: redirect to /login
@@ -72,4 +59,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-touch-icon.png|icon-192.png|icon-512.png|manifest.json|sw.js).*)",
   ],
 };
-

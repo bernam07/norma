@@ -10,6 +10,7 @@ import {
   Check,
   Calendar,
   Clock,
+  Settings,
 } from "lucide-react";
 import { Note } from "@/types/note";
 import {
@@ -142,37 +143,47 @@ export default function ArchivePage() {
           </div>
         </div>
 
-        {/* Global Export Options */}
-        {notes.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleCopyAll}
-              title="Copy all as Markdown (Obsidian / Notion)"
-              className="px-2.5 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-1.5 transition active:scale-95"
-            >
-              {copiedAll ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400">Copied</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5 text-zinc-400" />
-                  <span className="hidden sm:inline">Copy MD</span>
-                </>
-              )}
-            </button>
+        {/* Header Actions */}
+        <div className="flex items-center gap-1.5">
+          {notes.length > 0 && (
+            <>
+              <button
+                onClick={handleCopyAll}
+                title="Copy all as Markdown (Obsidian / Notion)"
+                className="px-2.5 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 flex items-center gap-1.5 transition active:scale-95"
+              >
+                {copiedAll ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-400">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-zinc-400" />
+                    <span className="hidden sm:inline">Copy MD</span>
+                  </>
+                )}
+              </button>
 
-            <button
-              onClick={handleDownloadAll}
-              title="Download complete .md file"
-              className="px-2.5 py-1.5 rounded-xl bg-zinc-100 text-zinc-950 text-xs font-semibold hover:bg-white flex items-center gap-1.5 transition active:scale-95"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Export .md</span>
-            </button>
-          </div>
-        )}
+              <button
+                onClick={handleDownloadAll}
+                title="Download complete .md file"
+                className="px-2.5 py-1.5 rounded-xl bg-zinc-100 text-zinc-950 text-xs font-semibold hover:bg-white flex items-center gap-1.5 transition active:scale-95"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Export .md</span>
+              </button>
+            </>
+          )}
+
+          <Link
+            href="/settings"
+            title="Settings & Setup"
+            className="p-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition active:scale-95"
+          >
+            <Settings className="w-4 h-4" />
+          </Link>
+        </div>
       </header>
 
       {/* Search & Filter Bar */}

@@ -74,15 +74,24 @@ export function generateDigestHtml(notes: Note[], dateString: string): string {
 </html>`;
 }
 
-export async function sendDailyBriefing(notes: Note[]): Promise<{ id: string }> {
-  const apiKey = process.env.RESEND_API_KEY;
+export interface EmailConfig {
+  apiKey?: string | null;
+  recipient?: string | null;
+  fromAddress?: string | null;
+}
+
+export async function sendDailyBriefing(
+  notes: Note[],
+  config?: EmailConfig
+): Promise<{ id: string }> {
+  const apiKey = config?.apiKey || process.env.RESEND_API_KEY;
   if (!apiKey) {
-    throw new Error("RESEND_API_KEY environment variable is not defined");
+    throw new Error("Resend API key is not configured. Please add it in Settings.");
   }
 
-  const recipient = process.env.USER_EMAIL;
+  const recipient = config?.recipient || process.env.USER_EMAIL;
   if (!recipient) {
-    throw new Error("USER_EMAIL environment variable is not defined");
+    throw new Error("Delivery email address is not configured. Please add it in Settings.");
   }
 
   const dateString = new Intl.DateTimeFormat("en-US", {
@@ -92,7 +101,7 @@ export async function sendDailyBriefing(notes: Note[]): Promise<{ id: string }> 
     day: "numeric",
   }).format(new Date());
 
-  const fromAddress = process.env.FROM_EMAIL || "Norma Digest <onboarding@resend.dev>";
+  const fromAddress = config?.fromAddress || process.env.FROM_EMAIL || "Norma Digest <onboarding@resend.dev>";
   const html = generateDigestHtml(notes, dateString);
 
   const resend = new Resend(apiKey);
@@ -105,6 +114,49 @@ export async function sendDailyBriefing(notes: Note[]): Promise<{ id: string }> 
 
   if (error) {
     console.error("[Email] Resend API error:", error);
+    throw new Error(error.message);
+  }
+
+  return { id: data?.id || "" };
+}
+
+export async function sendTestEmail(config: EmailConfig): Promise<{ id: string }> {
+  const apiKey = config?.apiKey || process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("Resend API key is required to send a test email.");
+  }
+
+  const recipient = config?.recipient || process.env.USER_EMAIL;
+  if (!recipient) {
+    throw new Error("Recipient email address is required.");
+  }
+
+  const fromAddress = config?.fromAddress || process.env.FROM_EMAIL || "Norma Digest <onboarding@resend.dev>";
+
+  const resend = new Resend(apiKey);
+  const { data, error } = await resend.emails.send({
+    from: fromAddress,
+    to: recipient,
+    subject: "Norma — Test Connection Successful! 🚀",
+    html: `
+      <div style="font-family: -apple-system, sans-serif; background-color: #09090b; color: #f4f4f5; padding: 40px 20px; text-align: center;">
+        <div style="max-width: 480px; margin: 0 auto; background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 32px; text-align: left;">
+          <h2 style="color: #10b981; margin-top: 0;">Connection Verified!</h2>
+          <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6;">
+            Your Resend API key and delivery email are correctly configured in Norma.
+          </p>
+          <p style="color: #a1a1aa; font-size: 13px; line-height: 1.6;">
+            Your daily capture queue will automatically be delivered to this email address every morning.
+          </p>
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #27272a; font-size: 11px; color: #71717a;">
+            Sent by Norma Daily Capture
+          </div>
+        </div>
+      </div>
+    `,
+  });
+
+  if (error) {
     throw new Error(error.message);
   }
 

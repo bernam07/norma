@@ -15,6 +15,7 @@ import {
   WifiOff,
   RefreshCw,
   Sparkles,
+  Settings,
 } from "lucide-react";
 import { Note } from "@/types/note";
 import {
@@ -73,6 +74,15 @@ export default function HomePage() {
   // Copy state
   const [isCopied, setIsCopied] = useState(false);
 
+  // User profile & onboarding states
+  const [userProfile, setUserProfile] = useState<{
+    id: string;
+    username: string;
+    has_resend_configured: boolean;
+    email: string | null;
+  } | null>(null);
+  const [showOnboardingBanner, setShowOnboardingBanner] = useState(false);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -81,6 +91,27 @@ export default function HomePage() {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
       window.location.href = "/login";
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setUserProfile(data.user);
+          if (!data.user.has_resend_configured) {
+            setShowOnboardingBanner(true);
+          }
+        }
+      }
+    } catch {
+      // offline or silent
     }
   };
 
@@ -148,6 +179,7 @@ export default function HomePage() {
     window.addEventListener("offline", handleOffline);
 
     // 2. Fetch fresh data in background
+    fetchUserProfile();
     fetchNotes();
     getPendingNotes().then((p) => setPendingCount(p.length));
     runOfflineSync();
@@ -396,6 +428,11 @@ export default function HomePage() {
                 isOnline ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
               }`}
             />
+            {userProfile?.username && (
+              <span className="text-[11px] text-zinc-500 font-mono font-normal">
+                @{userProfile.username}
+              </span>
+            )}
           </div>
           <p className="text-xs text-zinc-500 font-medium">{todayDate}</p>
         </div>
@@ -423,6 +460,15 @@ export default function HomePage() {
             <Archive className="w-3.5 h-3.5" />
           </Link>
 
+          {/* Link to Settings */}
+          <Link
+            href="/settings"
+            title="Settings & Email Setup"
+            className="p-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition active:scale-95"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </Link>
+
           {/* Lock session */}
           <button
             onClick={handleLogout}
@@ -433,6 +479,34 @@ export default function HomePage() {
           </button>
         </div>
       </header>
+
+      {/* Resend Setup Onboarding Banner */}
+      {showOnboardingBanner && (
+        <div className="mx-4 mt-3 p-3 rounded-2xl bg-zinc-900/90 border border-amber-800/40 flex items-center justify-between gap-3 text-xs shadow-lg shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="truncate">
+              <span className="font-semibold text-zinc-200">Email delivery not configured: </span>
+              <span className="text-zinc-400">Add your Resend API key to receive morning briefings.</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/settings"
+              className="px-2.5 py-1 rounded-lg bg-amber-400 text-zinc-950 font-semibold text-[11px] hover:bg-amber-300 transition active:scale-95"
+            >
+              Setup Now
+            </Link>
+            <button
+              onClick={() => setShowOnboardingBanner(false)}
+              className="p-1 text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
+              title="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Offline Pending Banner */}
       {pendingCount > 0 && isOnline && (

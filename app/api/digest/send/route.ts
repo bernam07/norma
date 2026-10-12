@@ -1,35 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUnprocessedNotes, markNotesAsProcessed } from "@/lib/db";
 import { sendDailyBriefing } from "@/lib/email";
-import { SESSION_COOKIE_NAME, isValidSessionToken, safeCompare } from "@/lib/auth";
+import { getAuthUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-async function checkAuth(request: NextRequest): Promise<boolean> {
-  const authSecret = process.env.AUTH_SECRET;
-  if (!authSecret) return false;
-
-  const authHeader = request.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const bearerToken = authHeader.substring(7);
-    if (safeCompare(bearerToken, authSecret)) return true;
-  }
-
-  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (sessionCookie && (await isValidSessionToken(sessionCookie))) {
-    return true;
-  }
-
-  return false;
-}
-
 export async function POST(request: NextRequest) {
   try {
-    if (!(await checkAuth(request))) {
+    const user = await getAuthUser(request);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const notes = await getUnprocessedNotes();
+    if (!user.email || !user.resend_api_key) {
+      return NextResponse.json(
+        {
+          error: "Please configure your delivery email and Resend API key in Settings first.",
+          missingSetup: true,
+        },
+        { status: 400 }
+      );
+    }
+
+    const notes = await getUnprocessedNotes(user.id);
 
     if (notes.length === 0) {
       return NextResponse.json(
@@ -38,9 +31,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const emailResult = await sendDailyBriefing(notes);
+    const emailResult = await sendDailyBriefing(notes, {
+      apiKey: user.resend_api_key,
+      recipient: user.email,
+      fromAddress: user.from_email || "Norma Digest <onboarding@resend.dev>",
+    });
+
     const noteIds = notes.map((note) => note.id);
-    await markNotesAsProcessed(noteIds);
+    await markNotesAsProcessed(noteIds, user.id);
 
     return NextResponse.json(
       {
