@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/session";
 import { sendTestEmail } from "@/lib/email";
 
+import { rateLimit } from "@/lib/rate-limit";
+
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
@@ -11,10 +13,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Rate limit: max 3 test emails per 5 minutes per user
+    const testLimit = rateLimit(`test_email_${user.id}`, {
+      windowMs: 5 * 60 * 1000,
+      max: 3,
+    });
+
+    if (!testLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many test emails sent. Please wait a few minutes before trying again." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": Math.ceil(testLimit.resetMs / 1000).toString(),
+          },
+        }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const apiKey = body.resend_api_key?.trim() || user.resend_api_key;
     const recipient = body.email?.trim() || user.email;
-    const fromAddress = body.from_email?.trim() || user.from_email || "Norma Digest <onboarding@resend.dev>";
+    const rawFrom = body.from_email?.trim() || user.from_email || "Norma Digest <onboarding@resend.dev>";
+
+    // Prevent Header Injection (CRLF) and excessively long from fields
+    if (/[\r\n]/.test(rawFrom) || rawFrom.length > 100) {
+      return NextResponse.json(
+        { error: "Invalid sender address format." },
+        { status: 400 }
+      );
+    }
 
     if (!apiKey) {
       return NextResponse.json(
@@ -23,9 +51,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!recipient) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!recipient || !emailRegex.test(recipient)) {
       return NextResponse.json(
-        { error: "Recipient email address is missing. Please enter your delivery email." },
+        { error: "Valid recipient email address is required." },
         { status: 400 }
       );
     }
@@ -33,7 +62,7 @@ export async function POST(request: NextRequest) {
     const result = await sendTestEmail({
       apiKey,
       recipient,
-      fromAddress,
+      fromAddress: rawFrom,
     });
 
     return NextResponse.json({

@@ -22,7 +22,7 @@ This extension allows you to capture notes, thoughts, and links from your browse
 1. Click the **Norma** icon in your browser toolbar.
 2. Click the settings icon (⚙):
    * **Norma URL**: Enter your deployed Norma URL (e.g., `https://norma.vercel.app` or `http://localhost:3000` for local testing).
-   * **Access Secret**: Enter the same passcode defined in your `AUTH_SECRET` environment variable.
+   * **Personal API Key**: Enter your personal API key copied from your Norma Settings page (starts with `nr_usr_...`).
 3. Click **Save**.
 
 ---

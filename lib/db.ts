@@ -264,57 +264,39 @@ export async function getUsersWithPendingNotesForCron(): Promise<
   return res.rows;
 }
 
-// --- NOTES OPERATIONS (SCOPED TO USER) ---
+// --- NOTES OPERATIONS (STRICTLY SCOPED TO USER) ---
 
-export async function getUnprocessedNotes(userId?: string): Promise<Note[]> {
+export async function getUnprocessedNotes(userId: string): Promise<Note[]> {
+  if (!userId || !UUID_REGEX.test(userId)) return [];
   await ensureTable();
   const client = getPool();
-
-  if (userId && UUID_REGEX.test(userId)) {
-    const res = await client.query<Note>(
-      `
-      SELECT id, user_id, content, created_at, processed
-      FROM notes
-      WHERE user_id = $1 AND processed = false
-      ORDER BY created_at DESC;
-      `,
-      [userId]
-    );
-    return res.rows;
-  }
-
-  const res = await client.query<Note>(`
-    SELECT id, user_id, content, created_at, processed
-    FROM notes
-    WHERE processed = false
-    ORDER BY created_at DESC;
-  `);
-  return res.rows;
-}
-
-export async function insertNote(content: string, userId?: string): Promise<Note> {
-  await ensureTable();
-  const client = getPool();
-
-  if (userId && UUID_REGEX.test(userId)) {
-    const res = await client.query<Note>(
-      `
-      INSERT INTO notes (content, user_id, processed)
-      VALUES ($1, $2, false)
-      RETURNING id, user_id, content, created_at, processed;
-      `,
-      [content, userId]
-    );
-    return res.rows[0];
-  }
 
   const res = await client.query<Note>(
     `
-    INSERT INTO notes (content, processed)
-    VALUES ($1, false)
+    SELECT id, user_id, content, created_at, processed
+    FROM notes
+    WHERE user_id = $1 AND processed = false
+    ORDER BY created_at DESC;
+    `,
+    [userId]
+  );
+  return res.rows;
+}
+
+export async function insertNote(content: string, userId: string): Promise<Note> {
+  if (!userId || !UUID_REGEX.test(userId)) {
+    throw new Error("A valid user_id is required to insert notes.");
+  }
+  await ensureTable();
+  const client = getPool();
+
+  const res = await client.query<Note>(
+    `
+    INSERT INTO notes (content, user_id, processed)
+    VALUES ($1, $2, false)
     RETURNING id, user_id, content, created_at, processed;
     `,
-    [content]
+    [content, userId]
   );
   return res.rows[0];
 }
@@ -322,140 +304,86 @@ export async function insertNote(content: string, userId?: string): Promise<Note
 export async function updateNote(
   id: string,
   content: string,
-  userId?: string
+  userId: string
 ): Promise<Note | null> {
-  if (!UUID_REGEX.test(id)) return null;
+  if (!UUID_REGEX.test(id) || !userId || !UUID_REGEX.test(userId)) return null;
   await ensureTable();
   const client = getPool();
-
-  if (userId && UUID_REGEX.test(userId)) {
-    const res = await client.query<Note>(
-      `
-      UPDATE notes
-      SET content = $1
-      WHERE id = $2 AND user_id = $3 AND processed = false
-      RETURNING id, user_id, content, created_at, processed;
-      `,
-      [content, id, userId]
-    );
-    return res.rows[0] || null;
-  }
 
   const res = await client.query<Note>(
     `
     UPDATE notes
     SET content = $1
-    WHERE id = $2 AND processed = false
+    WHERE id = $2 AND user_id = $3 AND processed = false
     RETURNING id, user_id, content, created_at, processed;
     `,
-    [content, id]
+    [content, id, userId]
   );
   return res.rows[0] || null;
 }
 
-export async function deleteNote(id: string, userId?: string): Promise<boolean> {
-  if (!UUID_REGEX.test(id)) return false;
+export async function deleteNote(id: string, userId: string): Promise<boolean> {
+  if (!UUID_REGEX.test(id) || !userId || !UUID_REGEX.test(userId)) return false;
   await ensureTable();
   const client = getPool();
-
-  if (userId && UUID_REGEX.test(userId)) {
-    const res = await client.query(
-      `
-      DELETE FROM notes
-      WHERE id = $1 AND user_id = $2;
-      `,
-      [id, userId]
-    );
-    return (res.rowCount ?? 0) > 0;
-  }
 
   const res = await client.query(
     `
     DELETE FROM notes
-    WHERE id = $1;
+    WHERE id = $1 AND user_id = $2;
     `,
-    [id]
+    [id, userId]
   );
   return (res.rowCount ?? 0) > 0;
 }
 
-export async function markNotesAsProcessed(ids: string[], userId?: string): Promise<void> {
+export async function markNotesAsProcessed(ids: string[], userId: string): Promise<void> {
+  if (!userId || !UUID_REGEX.test(userId)) return;
   const validIds = ids.filter((id) => typeof id === "string" && UUID_REGEX.test(id));
   if (validIds.length === 0) return;
   await ensureTable();
   const client = getPool();
 
-  if (userId && UUID_REGEX.test(userId)) {
-    await client.query(
-      `
-      UPDATE notes
-      SET processed = true
-      WHERE id = ANY($1::uuid[]) AND user_id = $2;
-      `,
-      [validIds, userId]
-    );
-    return;
-  }
-
   await client.query(
     `
     UPDATE notes
     SET processed = true
-    WHERE id = ANY($1::uuid[]);
+    WHERE id = ANY($1::uuid[]) AND user_id = $2;
     `,
-    [validIds]
+    [validIds, userId]
   );
 }
 
 export async function getProcessedNotes(
   limit = 200,
   offset = 0,
-  userId?: string
+  userId: string
 ): Promise<Note[]> {
+  if (!userId || !UUID_REGEX.test(userId)) return [];
   await ensureTable();
   const client = getPool();
-
-  if (userId && UUID_REGEX.test(userId)) {
-    const res = await client.query<Note>(
-      `
-      SELECT id, user_id, content, created_at, processed
-      FROM notes
-      WHERE user_id = $1 AND processed = true
-      ORDER BY created_at DESC
-      LIMIT $2 OFFSET $3;
-      `,
-      [userId, limit, offset]
-    );
-    return res.rows;
-  }
 
   const res = await client.query<Note>(
     `
     SELECT id, user_id, content, created_at, processed
     FROM notes
-    WHERE processed = true
+    WHERE user_id = $1 AND processed = true
     ORDER BY created_at DESC
-    LIMIT $1 OFFSET $2;
+    LIMIT $2 OFFSET $3;
     `,
-    [limit, offset]
+    [userId, limit, offset]
   );
   return res.rows;
 }
 
-export async function getProcessedNotesCount(userId?: string): Promise<number> {
+export async function getProcessedNotesCount(userId: string): Promise<number> {
+  if (!userId || !UUID_REGEX.test(userId)) return 0;
   await ensureTable();
   const client = getPool();
 
-  if (userId && UUID_REGEX.test(userId)) {
-    const res = await client.query<{ count: string }>(
-      `SELECT COUNT(*)::text as count FROM notes WHERE user_id = $1 AND processed = true;`,
-      [userId]
-    );
-    return parseInt(res.rows[0]?.count || "0", 10);
-  }
-
   const res = await client.query<{ count: string }>(
-    `SELECT COUNT(*)::text as count FROM notes WHERE processed = true;`
+    `SELECT COUNT(*)::text as count FROM notes WHERE user_id = $1 AND processed = true;`,
+    [userId]
   );
   return parseInt(res.rows[0]?.count || "0", 10);
 }

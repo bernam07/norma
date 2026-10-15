@@ -12,8 +12,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "200", 10), 500);
-    const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10), 0);
+    const parsedLimit = parseInt(searchParams.get("limit") || "200", 10);
+    const limit = Math.min(Math.max(isNaN(parsedLimit) ? 200 : parsedLimit, 1), 500);
+
+    const parsedOffset = parseInt(searchParams.get("offset") || "0", 10);
+    const offset = Math.max(isNaN(parsedOffset) ? 0 : parsedOffset, 0);
 
     const [notes, total] = await Promise.all([
       getProcessedNotes(limit, offset, user.id),

@@ -108,6 +108,16 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    // Validate from_email format to prevent CRLF injection
+    if (from_email !== undefined && from_email !== null && from_email.trim() !== "") {
+      if (/[\r\n]/.test(from_email) || from_email.trim().length > 100) {
+        return NextResponse.json(
+          { error: "Invalid sender address format." },
+          { status: 400 }
+        );
+      }
+    }
+
     const updatedUser = await updateUserSettings(user.id, {
       email,
       resendApiKey: resend_api_key,

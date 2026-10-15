@@ -8,11 +8,32 @@ import {
   isValidUsername,
 } from "@/lib/auth";
 import { hashPin } from "@/lib/pin";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
+    const clientIp = getClientIp(request);
+
+    // Limit account creations: max 5 per 15 minutes per IP
+    const regLimit = rateLimit(`reg_ip_${clientIp}`, {
+      windowMs: 15 * 60 * 1000,
+      max: 5,
+    });
+
+    if (!regLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many accounts created from this network. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": Math.ceil(regLimit.resetMs / 1000).toString(),
+          },
+        }
+      );
+    }
+
     const body = await request.json().catch(() => null);
     const username = typeof body?.username === "string" ? body.username.trim().toLowerCase() : "";
     const pin = typeof body?.pin === "string" ? body.pin.trim() : "";

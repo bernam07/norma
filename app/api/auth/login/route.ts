@@ -7,15 +7,57 @@ import {
 } from "@/lib/auth";
 import { verifyPin } from "@/lib/pin";
 
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
+    const clientIp = getClientIp(request);
+
+    // 1. Rate limit by IP: max 10 attempts per minute
+    const ipLimit = rateLimit(`login_ip_${clientIp}`, {
+      windowMs: 60 * 1000,
+      max: 10,
+    });
+
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many login attempts from this network. Please wait a minute." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": Math.ceil(ipLimit.resetMs / 1000).toString(),
+          },
+        }
+      );
+    }
+
     const body = await request.json().catch(() => null);
     const username = typeof body?.username === "string" ? body.username.trim().toLowerCase() : "";
     const pin = typeof body?.pin === "string" ? body.pin.trim() : "";
 
-    // Artificial delay to prevent rapid brute-force attempts
+    // 2. Rate limit by Username: max 5 attempts per minute to prevent targeted dictionary attacks
+    if (username) {
+      const userLimit = rateLimit(`login_user_${username}`, {
+        windowMs: 60 * 1000,
+        max: 5,
+      });
+
+      if (!userLimit.allowed) {
+        return NextResponse.json(
+          { error: "Too many failed attempts for this account. Please wait a minute." },
+          {
+            status: 429,
+            headers: {
+              "Retry-After": Math.ceil(userLimit.resetMs / 1000).toString(),
+            },
+          }
+        );
+      }
+    }
+
+    // Artificial delay to prevent timing analysis
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     if (!username || !pin || !isValidPin(pin)) {

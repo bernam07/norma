@@ -42,6 +42,8 @@ export default function ArchivePage() {
     try {
       const res = await fetch("/api/archive?limit=300", { cache: "no-store" });
       if (res.status === 401) {
+        localStorage.clear();
+        sessionStorage.clear();
         window.location.href = "/login";
         return;
       }

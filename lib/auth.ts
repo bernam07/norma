@@ -50,7 +50,16 @@ export function generateApiKey(): string {
 }
 
 function getSessionSecret(): string {
-  return process.env.AUTH_SECRET || "norma-default-fallback-secret-2026";
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "CRITICAL: AUTH_SECRET environment variable is missing. Refusing to operate in production without a secret."
+      );
+    }
+    return "norma-local-dev-fallback-secret-replace-in-env";
+  }
+  return secret;
 }
 
 /**

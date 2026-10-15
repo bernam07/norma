@@ -88,6 +88,8 @@ export default function HomePage() {
 
   const handleLogout = async () => {
     try {
+      localStorage.clear();
+      sessionStorage.clear();
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
       window.location.href = "/login";
@@ -98,6 +100,8 @@ export default function HomePage() {
     try {
       const res = await fetch("/api/auth/me");
       if (res.status === 401) {
+        localStorage.clear();
+        sessionStorage.clear();
         window.location.href = "/login";
         return;
       }
